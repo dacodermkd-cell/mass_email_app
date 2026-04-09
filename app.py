@@ -20,7 +20,11 @@ body_template = st.text_area(
 
 cc_input = st.text_area("CC Emails (comma separated)", "")
 
-uploaded_file = st.file_uploader("Upload Excel File", type=["xlsx"])
+# ✅ Accept multiple formats
+uploaded_file = st.file_uploader(
+    "Upload File",
+    type=["xlsx", "xls", "csv"]
+)
 
 uploaded_pdfs = st.file_uploader(
     "Upload PDF Attachments",
@@ -33,10 +37,20 @@ delay = st.slider("Delay between emails (seconds)", 1, 10, 3)
 if st.button("Send Emails"):
 
     if uploaded_file is None:
-        st.error("Upload Excel file first")
+        st.error("Upload file first")
         st.stop()
 
-    df = pd.read_excel(uploaded_file)
+    # ✅ Handle different file types
+    try:
+        if uploaded_file.name.endswith(".csv"):
+            df = pd.read_csv(uploaded_file)
+        elif uploaded_file.name.endswith(".xls"):
+            df = pd.read_excel(uploaded_file, engine="xlrd")
+        else:
+            df = pd.read_excel(uploaded_file)  # .xlsx
+    except Exception as e:
+        st.error(f"File read error: {e}")
+        st.stop()
 
     required_cols = ["Name", "Email", "Agenda"]
     for col in required_cols:
@@ -44,7 +58,7 @@ if st.button("Send Emails"):
             st.error(f"Missing column: {col}")
             st.stop()
 
-    # Create PDF dictionary
+    # PDF mapping
     pdf_dict = {file.name: file for file in uploaded_pdfs}
 
     cc_list = [email.strip() for email in cc_input.split(",") if email.strip()]
@@ -72,7 +86,7 @@ if st.button("Send Emails"):
 
             msg.attach(MIMEText(body, "plain"))
 
-            # Attach PDF from uploaded files
+            # ✅ Attach PDF
             if filename in pdf_dict:
                 pdf_file = pdf_dict[filename]
                 part = MIMEApplication(pdf_file.read(), _subtype="pdf")
